@@ -5,6 +5,9 @@ const token = process.env.BOT_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
 
+// Initialize the bot to fetch its information
+await bot.init();
+
 // Bot logic
 bot.command("start", (ctx) => ctx.reply("Welcome! I'm your Telegram bot."));
 bot.on("message", (ctx) => ctx.reply("I received your message!"));
@@ -15,7 +18,7 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       // Read the request body
       const body = await readBody(req);
-      
+
       // Parse the body to JSON
       const update = JSON.parse(body);
 
@@ -49,6 +52,7 @@ async function readBody(request) {
     });
   });
 }
+
 
 
 
