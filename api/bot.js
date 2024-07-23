@@ -6,8 +6,7 @@ if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
 
 // Bot logic
-bot.command("start", (ctx) => ctx.reply("Welcome! I'm your Telegram bot."));
-bot.on("message", (ctx) => ctx.reply("I received your message!"));
+bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
 
 // Handler for Vercel serverless function
 export default async function handler(req, res) {
@@ -18,12 +17,6 @@ export default async function handler(req, res) {
       
       // Parse the body to JSON
       const update = JSON.parse(body);
-
-      // Initialize the bot if not already initialized
-      if (!bot.isInited) {
-        await bot.init();
-        bot.isInited = true; // Mark the bot as initialized
-      }
 
       // Process the update
       await bot.handleUpdate(update);
@@ -55,8 +48,6 @@ async function readBody(request) {
     });
   });
 }
-
-
 
 
 
