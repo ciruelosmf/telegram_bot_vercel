@@ -10,41 +10,53 @@ bot.command("start", (ctx) => ctx.reply("Welcome! I'm your Telegram bot."));
 bot.on("message", (ctx) => ctx.reply("I received your message!"));
 
 // Handler for Vercel serverless function
-export default async function handler(request) {
+export default async function handler(req, res) {
   try {
-    if (request.method === "POST") {
-      // Read and parse the request body
-      const body = await request.text();
+    if (req.method === "POST") {
+      // Read the request body
+      const body = await readBody(req);
+      
+      // Parse the body to JSON
       const update = JSON.parse(body);
 
       // Process the update
       await bot.handleUpdate(update);
 
       // Respond with success
-      return new Response("OK", { status: 200 });
+      res.status(200).send("OK");
     } else {
       // Respond to non-POST requests
-      return new Response(JSON.stringify({ message: "Bot is running" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      res.status(200).json({ message: "Bot is running" });
     }
   } catch (e) {
     console.error("Error processing webhook:", e);
-    return new Response("Internal Server Error", { status: 500 });
+    res.status(500).send("Internal Server Error");
   }
 }
 
-// Remove the unused readBody function
-
-/**
-bot.on("message", async (ctx) => {
-    await ctx.reply("I got your message!");
+// Helper function to read request body
+async function readBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    request.on('data', chunk => {
+      body += chunk.toString(); // convert Buffer to string
+    });
+    request.on('end', () => {
+      resolve(body);
+    });
+    request.on('error', (err) => {
+      reject(err);
+    });
   });
+}
 
-  
-export default webhookCallback(bot, "std/http");
-*/
+
+
+
+
+
+
+
 
  
 /**
