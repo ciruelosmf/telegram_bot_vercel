@@ -6,6 +6,10 @@ const token = process.env.BOT_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
 
+async function initializeBot() {
+  await bot.init();
+}
+
 // Bot logic
 bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
 
@@ -13,6 +17,9 @@ bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === "POST") {
+      // Ensure bot is initialized
+      await initializeBot();
+
       // Read the request body
       const body = await readBody(req);
       
@@ -49,7 +56,6 @@ async function readBody(request: VercelRequest): Promise<string> {
     });
   });
 }
-
 
  
 /**
