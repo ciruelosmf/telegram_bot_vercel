@@ -1,4 +1,4 @@
-import { Bot, webhookCallback } from "grammy";
+import { Bot } from "grammy";
 
 // Initialize the bot
 const token = process.env.BOT_TOKEN;
@@ -10,11 +10,11 @@ bot.command("start", (ctx) => ctx.reply("Welcome! I'm your Telegram bot."));
 bot.on("message", (ctx) => ctx.reply("I received your message!"));
 
 // Handler for Vercel serverless function
-export default async function handler(req, res) {
-  if (req.method === "POST") {
-    try {
+export default async function handler(request) {
+  try {
+    if (request.method === "POST") {
       // Read the request body
-      const body = await readBody(req);
+      const body = await readBody(request);
       
       // Parse the body to JSON
       const update = JSON.parse(body);
@@ -23,28 +23,30 @@ export default async function handler(req, res) {
       await bot.handleUpdate(update);
 
       // Respond with success
-      res.status(200).send("OK");
-    } catch (e) {
-      console.error("Error processing webhook:", e);
-      res.status(500).send("Internal Server Error");
+      return new Response("OK", { status: 200 });
+    } else {
+      // Respond to non-POST requests
+      return new Response(JSON.stringify({ message: "Bot is running" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
-  } else {
-    // Respond to non-POST requests
-    res.status(200).json({ message: "Bot is running" });
+  } catch (e) {
+    console.error("Error processing webhook:", e);
+    return new Response("Internal Server Error", { status: 500 });
   }
 }
 
 // Helper function to read request body
-async function readBody(req) {
+async function readBody(request) {
   const buffers = [];
-  for await (const chunk of req) {
+  for await (const chunk of request.body) {
     buffers.push(chunk);
   }
   return Buffer.concat(buffers).toString();
 }
 
-// If using Node.js 18 or later, you can use this config.
-// If it causes issues, you can remove it.
+// Configuration for Edge Runtime
 export const config = {
   runtime: "edge",
 };
