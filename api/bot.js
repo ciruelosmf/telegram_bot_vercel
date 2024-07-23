@@ -13,10 +13,8 @@ bot.on("message", (ctx) => ctx.reply("I received your message!"));
 export default async function handler(request) {
   try {
     if (request.method === "POST") {
-      // Read the request body
-      const body = await readBody(request);
-      
-      // Parse the body to JSON
+      // Read and parse the request body
+      const body = await request.text();
       const update = JSON.parse(body);
 
       // Process the update
@@ -37,16 +35,17 @@ export default async function handler(request) {
   }
 }
 
-// Helper function to read request body
-async function readBody(request) {
-  const buffers = [];
-  for await (const chunk of request.body) {
-    buffers.push(chunk);
-  }
-  return Buffer.concat(buffers).toString();
-}
+// Remove the unused readBody function
 
- 
+/**
+bot.on("message", async (ctx) => {
+    await ctx.reply("I got your message!");
+  });
+
+  
+export default webhookCallback(bot, "std/http");
+*/
+
  
 /**
 bot.on("message", async (ctx) => {
