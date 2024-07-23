@@ -46,11 +46,7 @@ async function readBody(request) {
   return Buffer.concat(buffers).toString();
 }
 
-// Configuration for Edge Runtime
-export const config = {
-  runtime: "edge",
-};
-
+ 
  
 /**
 bot.on("message", async (ctx) => {
