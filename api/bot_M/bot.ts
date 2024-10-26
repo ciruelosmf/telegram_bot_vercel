@@ -1,32 +1,56 @@
 import { Bot } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Initialize the bot only once
-const token = process.env.BOT_M_TOKEN;
+// Initialize the bot
+const token = process.env.BOT_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
-console.log("Processing webhook:");
 
+async function initializeBot() {
+  await bot.init();
+}
 // Bot logic
 bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
 
-// Vercel serverless function handler
+// Handler for Vercel serverless function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log("Request method:", req.method); // Log the method for debugging
-  if (req.method === "POST") {
-    try {
-      // Check if the request body is JSON
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      console.log("Received body:", body); // Log the body for debugging
-      await bot.handleUpdate(body); // Process the update
-      res.status(200).send("OK"); // Respond with success
-    } catch (error) {
-      console.error("Error handling update:", error);
-      res.status(500).send("Error processing update");
+  try {
+    if (req.method === "POST") {
+      // Ensure bot is initialized
+      await initializeBot();
+      // Read the request body
+      const body = await readBody(req);
+
+      // Parse the body to JSON
+      const update = JSON.parse(body);
+
+      // Process the update
+      await bot.handleUpdate(update);
+
+      // Respond with success
+      res.status(200).send("OK");
+    } else {
+      // Respond to non-POST requests
+      res.status(200).json({ message: "Bot is running" });
     }
-  } else {
-    // Respond to non-POST requests
-    console.log("Non-POST request received:", req.method);
-    res.status(405).send(`Method ${req.method} Not Allowed`);
+  } catch (e) {
+    console.error("Error processing webhook:", e);
+    res.status(500).send("Internal Server Error");
   }
+}
+
+// Helper function to read request body
+async function readBody(request: VercelRequest): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    request.on('data', chunk => {
+      body += chunk.toString(); // convert Buffer to string
+    });
+    request.on('end', () => {
+      resolve(body);
+    });
+    request.on('error', (err) => {
+      reject(err);
+    });
+  });
 }
