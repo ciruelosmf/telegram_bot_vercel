@@ -2,7 +2,7 @@ import { Bot } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Initialize the bot
-const token = process.env.BOT_TOKEN;
+const token = process.env.BOT_F_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
 
