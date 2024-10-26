@@ -4,14 +4,14 @@
       "memory": 1024,
       "maxDuration": 10
     },
-    "api/bot_S/bot.ts": {
+    "api/bot_M/bot.ts": {
       "memory": 1024,
       "maxDuration": 10
     }
   },
   "rewrites": [
     { "source": "/api/bot_F", "destination": "/api/bot_F" },
-    { "source": "/api/bot_S", "destination": "/api/bot_S" }
+    { "source": "/api/bot_M", "destination": "/api/bot_M" }
   ],
   "headers": [
     {
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "source": "/api/bot_S",
+      "source": "/api/bot_M",
       "headers": [
         { "key": "Access-Control-Allow-Credentials", "value": "true" },
         { "key": "Access-Control-Allow-Origin", "value": "*" },
