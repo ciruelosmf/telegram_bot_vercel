@@ -1,76 +1,56 @@
-import { Bot } from "grammy";
+import { Bot, webhookCallback } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Initialize the bot
 const token = process.env.BOT_F_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
+
 const bot = new Bot(token);
 
-async function initializeBot() {
-  await bot.init();
-}
+// Bot handlers
+bot.command("start", (ctx) => ctx.reply("Welcome! Bot is active."));
+bot.on("message:text", (ctx) => {
+  console.log('Received message:', ctx.message.text);
+  return ctx.reply(`You wrote: ${ctx.message.text}`);
+});
 
-// Bot logic
-bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
+// Error handler
+bot.catch((err) => {
+  console.error('Bot error:', err);
+});
+
+// Create the webhook callback handler
+const handleWebhook = webhookCallback(bot, "http");
 
 // Handler for Vercel serverless function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log(`Received ${req.method} request to ${req.url}`);
+
   try {
     if (req.method === "POST") {
-      // Ensure bot is initialized
-      await initializeBot();
-
-      // Read the request body
-      const body = await readBody(req);
-      
-      // Parse the body to JSON
-      const update = JSON.parse(body);    
-
-
-      // Process the update
-      await bot.handleUpdate(update);
-
-      // Respond with success
-      res.status(200).send("OK");
+      // Handle the webhook
+      await handleWebhook(req, res);
+    } else if (req.method === "GET") {
+      // Health check and webhook info
+      try {
+        const webhookInfo = await bot.api.getWebhookInfo();
+        res.status(200).json({ 
+          status: 'active',
+          webhook: webhookInfo,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Error getting webhook info:', error);
+        res.status(500).json({ error: 'Failed to get webhook info' });
+      }
     } else {
-      // Respond to non-POST requests
-      res.status(200).json({ message: "Bot is running" });
+      res.status(405).json({ error: 'Method not allowed' });
     }
   } catch (e) {
-    console.error("Error processing webhook:", e);
-    res.status(500).send("Internal Server Error");
+    console.error('Unhandled error:', e);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: e.message 
+    });
   }
 }
-
-// Helper function to read request body
-async function readBody(request: VercelRequest): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    request.on('data', chunk => {
-      body += chunk.toString(); // convert Buffer to string
-    });
-    request.on('end', () => {
-      resolve(body);
-    });
-    request.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
-
- 
-/**
-bot.on("message", async (ctx) => {
-    await ctx.reply("I got your message!");
-  });
-
-  
-export default webhookCallback(bot, "std/http");
-
-
- 
-
-
-   */
-
- 
