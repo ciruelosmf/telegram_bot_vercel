@@ -1,35 +1,24 @@
 import { Bot } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
-// Initialize the bot
+// Initialize the bot only once
 const token = process.env.BOT_M_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
-console.log(" processing webhook:");
+console.log("Processing webhook:");
 
-async function initializeBot() {
-  await bot.init();
-}
+// Register the webhook URL with Telegram (done manually or on initial setup)
+// bot.api.setWebhook("https://your-vercel-url/api/bot");
 
 // Bot logic
 bot.on("message:text", (ctx) => ctx.reply("You wrote: " + ctx.message.text));
 
-// Handler for Vercel serverless function
+// Vercel serverless function handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method === "POST") {
-      // Ensure bot is initialized
-      await initializeBot();
-
-      // Read the request body
-      const body = await readBody(req);
-      
-      // Parse the body to JSON
-      const update = JSON.parse(body);    
-
-
       // Process the update
-      await bot.handleUpdate(update);
+      await bot.handleUpdate(req.body);
 
       // Respond with success
       res.status(200).send("OK");
@@ -42,36 +31,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(500).send("Internal Server Error");
   }
 }
-
-// Helper function to read request body
-async function readBody(request: VercelRequest): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    request.on('data', chunk => {
-      body += chunk.toString(); // convert Buffer to string
-    });
-    request.on('end', () => {
-      resolve(body);
-    });
-    request.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
-
- 
-/**
-bot.on("message", async (ctx) => {
-    await ctx.reply("I got your message!");
-  });
-
-  
-export default webhookCallback(bot, "std/http");
-
-
- 
-
-
-   */
-
- 
