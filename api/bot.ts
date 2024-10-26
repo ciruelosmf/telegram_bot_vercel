@@ -24,7 +24,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const body = await readBody(req);
       
       // Parse the body to JSON
-      const update = JSON.parse(body);
+      const update = JSON.parse(body);    
+
 
       // Process the update
       await bot.handleUpdate(update);
