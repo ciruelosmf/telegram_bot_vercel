@@ -5,6 +5,7 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 const token = process.env.BOT_M_TOKEN;
 if (!token) throw new Error("BOT_TOKEN is unset");
 const bot = new Bot(token);
+console.log(" processing webhook:");
 
 async function initializeBot() {
   await bot.init();
