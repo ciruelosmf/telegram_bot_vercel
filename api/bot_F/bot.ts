@@ -1,7 +1,4 @@
 
-
-
-
 import { Bot, webhookCallback } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
