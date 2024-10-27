@@ -5,7 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize the bot
 const token = process.env.BOT_M_TOKEN;
 const googleApiKey = process.env.GOOGLE_API_KEY;
-const otherBotUsername = "Catherine_LovAct_bot"; // e.g., "@other_bot"
+const otherBotUsername = "Catherine_LovAct_bot";
 
 if (!token) throw new Error("BOT_TOKEN is unset");
 if (!googleApiKey) throw new Error("GOOGLE_API_KEY is unset");
@@ -20,7 +20,9 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // Helper function to generate AI response
 async function generateAIResponse(prompt: string): Promise<string> {
   try {
-    const result = await model.generateContent(prompt);
+    // Create a simple prompt that encourages a conversational response
+    const enhancedPrompt = `Respond naturally to this message in a conversational way: "${prompt}"`;
+    const result = await model.generateContent(enhancedPrompt);
     return result.response.text();
   } catch (error) {
     console.error('Error generating AI response:', error);
@@ -41,15 +43,12 @@ bot.command("startconvo", async (ctx) => {
     return ctx.reply("This command only works in group chats.");
   }
   
-  await ctx.reply("Starting a conversation...");
-  const initialMessage = "Hello everyone! Let's have a conversation!";
-  const aiResponse = await generateAIResponse(initialMessage);
-  await ctx.reply(aiResponse);
+  const initialMessage = "Hello! I'd love to chat with you. How are you today?";
+  await ctx.reply(initialMessage);
 });
 
 // Handle messages in group
 bot.on("message:text", async (ctx) => {
-  // Only process in group chats
   if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") {
     return;
   }
@@ -61,25 +60,30 @@ bot.on("message:text", async (ctx) => {
     const isReplyToOtherBot = repliedToUsername === otherBotUsername.replace("@", "");
     const myUsername = ctx.me.username;
     
-    // Check if message is a reply to the other bot
-    if (fromBot && isReplyToOtherBot) {
+    // Only respond to messages that are either:
+    // 1. Replies to the other bot
+    // 2. Direct mentions of this bot
+    if ((fromBot && isReplyToOtherBot) || message.text.includes(`@${myUsername}`)) {
       // Show typing indicator
       await ctx.replyWithChatAction("typing");
-
+      
+      // Add a small random delay (0.5-1.5 seconds) to make it feel more natural
+      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+      
       // Generate and send response
       const aiResponse = await generateAIResponse(message.text);
       await ctx.reply(aiResponse, {
         reply_to_message_id: message.message_id
       });
-    }
-    
-    // Handle direct mentions of this bot
-    if (message.text.includes(`@${myUsername}`)) {
-      await ctx.replyWithChatAction("typing");
-      const aiResponse = await generateAIResponse(message.text);
-      await ctx.reply(aiResponse, {
-        reply_to_message_id: message.message_id
-      });
+      
+      // 50% chance to send a follow-up question to keep the conversation going
+      if (Math.random() < 0.5) {
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+        const followUpResponse = await generateAIResponse("Ask a follow-up question about: " + message.text);
+        await ctx.reply(followUpResponse, {
+          reply_to_message_id: message.message_id
+        });
+      }
     }
 
   } catch (error) {
