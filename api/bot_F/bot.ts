@@ -7,7 +7,7 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Initialize the bot
-const token = process.env.BOT_M_TOKEN;
+const token = process.env.BOT_F_TOKEN;
 const googleApiKey = process.env.GOOGLE_API_KEY;
 const otherBotUsername = "Justin_LovAct_bot"; // e.g., "@other_bot"
 
