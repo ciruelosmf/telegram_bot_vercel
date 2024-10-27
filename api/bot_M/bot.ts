@@ -3,7 +3,7 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Initialize the bot
 const token = process.env.BOT_M_TOKEN;
-if (!token) throw new Error("BOT_TOKEN is unset");
+if (!token) throw new Error("BOT_TOKEN is usnset");
 
 const bot = new Bot(token);
 
