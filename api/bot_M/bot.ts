@@ -5,9 +5,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize the bot
 const token = process.env.BOT_M_TOKEN;
 const googleApiKey = process.env.GOOGLE_API_KEY;
+const otherBotUsername = "Catherine_LovAct_bot"; // e.g., "@other_bot"
 
 if (!token) throw new Error("BOT_TOKEN is unset");
 if (!googleApiKey) throw new Error("GOOGLE_API_KEY is unset");
+if (!otherBotUsername) throw new Error("OTHER_BOT_USERNAME is unset");
 
 const bot = new Bot(token);
 
@@ -22,30 +24,67 @@ async function generateAIResponse(prompt: string): Promise<string> {
     return result.response.text();
   } catch (error) {
     console.error('Error generating AI response:', error);
-    return "Sorry, I couldn't generate a response at the moment. Please try again later.";
+    return "Sorry, I couldn't generate a response at the moment.";
   }
 }
 
 // Bot handlers
-bot.command("start", (ctx) => ctx.reply("Welcome! I'm an AI-powered bot. Send me a message and I'll respond with AI-generated content."));
+bot.command("start", (ctx) => {
+  if (ctx.chat.type === "group" || ctx.chat.type === "supergroup") {
+    return ctx.reply("I'm ready to chat in this group! Use /startconvo to begin a conversation.");
+  }
+  return ctx.reply("Please add me to a group chat to use my features.");
+});
 
+bot.command("startconvo", async (ctx) => {
+  if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") {
+    return ctx.reply("This command only works in group chats.");
+  }
+  
+  await ctx.reply("Starting a conversation...");
+  const initialMessage = "Hello everyone! Let's have a conversation!";
+  const aiResponse = await generateAIResponse(initialMessage);
+  await ctx.reply(aiResponse);
+});
+
+// Handle messages in group
 bot.on("message:text", async (ctx) => {
+  // Only process in group chats
+  if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") {
+    return;
+  }
+
   try {
-    console.log('Received message:', ctx.message.text);
+    const message = ctx.message;
+    const fromBot = message.reply_to_message?.from?.is_bot;
+    const repliedToUsername = message.reply_to_message?.from?.username;
+    const isReplyToOtherBot = repliedToUsername === otherBotUsername.replace("@", "");
+    const myUsername = ctx.me.username;
     
-    // Show typing indicator while generating response
-    await ctx.replyWithChatAction("typing");
+    // Check if message is a reply to the other bot
+    if (fromBot && isReplyToOtherBot) {
+      // Show typing indicator
+      await ctx.replyWithChatAction("typing");
+
+      // Generate and send response
+      const aiResponse = await generateAIResponse(message.text);
+      await ctx.reply(aiResponse, {
+        reply_to_message_id: message.message_id
+      });
+    }
     
-    // Generate AI response
-    const aiResponse = await generateAIResponse(ctx.message.text);
-    
-    // Send the response
-    return ctx.reply(aiResponse, {
-      parse_mode: "Markdown",
-    });
+    // Handle direct mentions of this bot
+    if (message.text.includes(`@${myUsername}`)) {
+      await ctx.replyWithChatAction("typing");
+      const aiResponse = await generateAIResponse(message.text);
+      await ctx.reply(aiResponse, {
+        reply_to_message_id: message.message_id
+      });
+    }
+
   } catch (error) {
-    console.error('Error handling message:', error);
-    return ctx.reply("Sorry, there was an error processing your message. Please try again.");
+    console.error('Error in message handler:', error);
+    await ctx.reply("Sorry, there was an error processing the message.");
   }
 });
 
@@ -59,25 +98,9 @@ const handleWebhook = webhookCallback(bot, "http");
 
 // Handler for Vercel serverless function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log(`Received ${req.method} request to ${req.url}`);
-
   try {
     if (req.method === "POST") {
-      // Handle the webhook
       await handleWebhook(req, res);
-    } else if (req.method === "GET") {
-      // Health check and webhook info
-      try {
-        const webhookInfo = await bot.api.getWebhookInfo();
-        res.status(200).json({ 
-          status: 'active',
-          webhook: webhookInfo,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        console.error('Error getting webhook info:', error);
-        res.status(500).json({ error: 'Failed to get webhook info' });
-      }
     } else {
       res.status(405).json({ error: 'Method not allowed' });
     }
