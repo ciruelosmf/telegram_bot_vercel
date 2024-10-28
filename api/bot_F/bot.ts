@@ -1,96 +1,124 @@
-
 import { Bot, webhookCallback } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
+import fetch from "node-fetch";
 
-// Initialize the bot
+// Initialize the bot and API keys
 const token = process.env.BOT_F_TOKEN;
 const googleApiKey = process.env.GOOGLE_API_KEY;
-const otherBotUsername = "Justin_LovAct_bot"; // e.g., "@other_bot"
-
 
 if (!token) throw new Error("BOT_TOKEN is unset");
 if (!googleApiKey) throw new Error("GOOGLE_API_KEY is unset");
-if (!otherBotUsername) throw new Error("OTHER_BOT_USERNAME is unset");
 
 const bot = new Bot(token);
 
-// Initialize Google AI
+// Initialize Google AI and File Manager
 const genAI = new GoogleGenerativeAI(googleApiKey);
+const fileManager = new GoogleAIFileManager(googleApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-// Helper function to generate AI response
+// Helper function to download image from Telegram and save as buffer
+async function downloadTelegramImage(fileUrl: string): Promise<Buffer> {
+  const response = await fetch(fileUrl);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+// Helper function to generate AI response for text
 async function generateAIResponse(prompt: string): Promise<string> {
   try {
-    // Create a simple prompt that encourages a conversational response
-    const enhancedPrompt = `Respond naturally to this message in a conversational way: "${prompt}"`;
-    const result = await model.generateContent(enhancedPrompt);
+    const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (error) {
     console.error('Error generating AI response:', error);
-    return "Sorry, I couldn't generate a response at the moment.";
+    return "Sorry, I couldn't generate a response at the moment. Please try again later.";
+  }
+}
+
+// Helper function to generate AI response for images using File API
+async function generateImageResponse(imageBuffer: Buffer, mimeType: string): Promise<string> {
+  try {
+    // Upload the image using File API
+    const uploadResult = await fileManager.uploadFile(imageBuffer, {
+      mimeType: mimeType,
+      displayName: `telegram_image_${Date.now()}`,
+    });
+
+    console.log(`Uploaded file as: ${uploadResult.file.uri}`);
+
+    // Generate content using the uploaded file
+    const result = await model.generateContent([
+      "Analyze and describe this image in detail.",
+      {
+        fileData: {
+          fileUri: uploadResult.file.uri,
+          mimeType: uploadResult.file.mimeType,
+        },
+      },
+    ]);
+
+    return result.response.text();
+  } catch (error) {
+    console.error('Error generating image response:', error);
+    return "Sorry, I couldn't analyze the image at the moment. Please try again later.";
   }
 }
 
 // Bot handlers
-bot.command("start", (ctx) => {
-  if (ctx.chat.type === "group" || ctx.chat.type === "supergroup") {
-    return ctx.reply("I'm ready to chat in this group! Use /startconvo to begin a conversation.");
-  }
-  return ctx.reply("Please add me to a group chat to use my features.");
-});
+bot.command("start", (ctx) => ctx.reply(
+  "Welcome! I'm an AI-powered bot. You can:\n" +
+  "1. Send me a text message for an AI response\n" +
+  "2. Send me an image to analyze it"
+));
 
-bot.command("startconvo", async (ctx) => {
-  if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") {
-    return ctx.reply("This command only works in group chats.");
-  }
-  
-  const initialMessage = "Hello! I'd love to chat with you. How are you today?";
-  await ctx.reply(initialMessage);
-});
-
-// Handle messages in group
+// Handle text messages
 bot.on("message:text", async (ctx) => {
-  if (ctx.chat.type !== "group" && ctx.chat.type !== "supergroup") {
-    return;
-  }
-
   try {
-    const message = ctx.message;
-    const fromBot = message.reply_to_message?.from?.is_bot;
-    const repliedToUsername = message.reply_to_message?.from?.username;
-    const isReplyToOtherBot = repliedToUsername === otherBotUsername.replace("@", "");
-    const myUsername = ctx.me.username;
+    console.log('Received text message:', ctx.message.text);
+    await ctx.replyWithChatAction("typing");
+    const aiResponse = await generateAIResponse(ctx.message.text);
+    return ctx.reply(aiResponse, {
+      parse_mode: "Markdown",
+    });
+  } catch (error) {
+    console.error('Error handling text message:', error);
+    return ctx.reply("Sorry, there was an error processing your message. Please try again.");
+  }
+});
+
+// Handle photo messages
+bot.on("message:photo", async (ctx) => {
+  try {
+    console.log('Received photo message');
+    await ctx.replyWithChatAction("typing");
+
+    // Get the photo file ID (highest quality version)
+    const photoFile = ctx.message.photo[ctx.message.photo.length - 1];
     
-    // Only respond to messages that are either:
-    // 1. Replies to the other bot
-    // 2. Direct mentions of this bot
-    if ((fromBot && isReplyToOtherBot) || message.text.includes(`@${myUsername}`)) {
-      // Show typing indicator
-      await ctx.replyWithChatAction("typing");
-      
-      // Add a small random delay (0.5-1.5 seconds) to make it feel more natural
-      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
-      
-      // Generate and send response
-      const aiResponse = await generateAIResponse(message.text);
-      await ctx.reply(aiResponse, {
-        reply_to_message_id: message.message_id
-      });
-      
-      // 50% chance to send a follow-up question to keep the conversation going
-      if (Math.random() < 0.5) {
-        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
-        const followUpResponse = await generateAIResponse("Ask a follow-up question about: " + message.text);
-        await ctx.reply(followUpResponse, {
-          reply_to_message_id: message.message_id
-        });
-      }
+    // Get file info including download URL
+    const file = await ctx.api.getFile(photoFile.file_id);
+    if (!file.file_path) {
+      throw new Error("Couldn't get file path");
     }
 
+    // Download the image
+    const imageBuffer = await downloadTelegramImage(
+      `https://api.telegram.org/file/bot${token}/${file.file_path}`
+    );
+
+    // Generate response using the File API
+    const aiResponse = await generateImageResponse(imageBuffer, 'image/jpeg');
+
+    return ctx.reply(aiResponse, {
+      parse_mode: "Markdown",
+      reply_to_message_id: ctx.message.message_id
+    });
   } catch (error) {
-    console.error('Error in message handler:', error);
-    await ctx.reply("Sorry, there was an error processing the message.");
+    console.error('Error handling photo message:', error);
+    return ctx.reply(
+      "Sorry, there was an error processing your image. Please try again.",
+      { reply_to_message_id: ctx.message.message_id }
+    );
   }
 });
 
@@ -104,9 +132,23 @@ const handleWebhook = webhookCallback(bot, "http");
 
 // Handler for Vercel serverless function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log(`Received ${req.method} request to ${req.url}`);
+
   try {
     if (req.method === "POST") {
       await handleWebhook(req, res);
+    } else if (req.method === "GET") {
+      try {
+        const webhookInfo = await bot.api.getWebhookInfo();
+        res.status(200).json({ 
+          status: 'active',
+          webhook: webhookInfo,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Error getting webhook info:', error);
+        res.status(500).json({ error: 'Failed to get webhook info' });
+      }
     } else {
       res.status(405).json({ error: 'Method not allowed' });
     }
