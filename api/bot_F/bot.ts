@@ -1,7 +1,6 @@
 import { Bot, webhookCallback } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { GoogleAIFileManager } from "@google/generative-ai/server";
 import fetch from "node-fetch";
 
 // Initialize the bot and API keys
@@ -13,21 +12,15 @@ if (!googleApiKey) throw new Error("GOOGLE_API_KEY is unset");
 
 const bot = new Bot(token);
 
-// Initialize Google AI and File Manager
+// Initialize Google AI
 const genAI = new GoogleGenerativeAI(googleApiKey);
-const fileManager = new GoogleAIFileManager(googleApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-// Helper function to download image from Telegram and save as buffer
-async function downloadTelegramImage(fileUrl: string): Promise<Buffer> {
-  const response = await fetch(fileUrl);
-  return Buffer.from(await response.arrayBuffer());
-}
 
 // Helper function to generate AI response for text
 async function generateAIResponse(prompt: string): Promise<string> {
   try {
-    const result = await model.generateContent(prompt);
+    const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await textModel.generateContent(prompt);
     return result.response.text();
   } catch (error) {
     console.error('Error generating AI response:', error);
@@ -35,31 +28,31 @@ async function generateAIResponse(prompt: string): Promise<string> {
   }
 }
 
-// Helper function to generate AI response for images using File API
-async function generateImageResponse(imageBuffer: Buffer, mimeType: string): Promise<string> {
+// Helper function to generate AI response for images
+async function generateImageResponse(imageData: Uint8Array): Promise<string> {
   try {
-    // Upload the image using File API
-    const uploadResult = await fileManager.uploadFile(imageBuffer, {
-      mimeType: mimeType,
-      displayName: `telegram_image_${Date.now()}`,
-    });
-
-    console.log(`Uploaded file as: ${uploadResult.file.uri}`);
-
-    // Generate content using the uploaded file
+    console.log('Starting image processing...');
+    
+    // Generate content directly using the image data
     const result = await model.generateContent([
-      "Analyze and describe this image in detail.",
+      "Analyze this image in detail and describe what you see.",
       {
-        fileData: {
-          fileUri: uploadResult.file.uri,
-          mimeType: uploadResult.file.mimeType,
-        },
-      },
+        inlineData: {
+          data: Buffer.from(imageData).toString('base64'),
+          mimeType: "image/jpeg"
+        }
+      }
     ]);
 
-    return result.response.text();
+    const response = await result.response.text();
+    console.log('Generated response successfully');
+    return response;
+
   } catch (error) {
-    console.error('Error generating image response:', error);
+    console.error('Error in generateImageResponse:', error);
+    if (error instanceof Error) {
+      return `Sorry, I couldn't analyze the image. Error: ${error.message}`;
+    }
     return "Sorry, I couldn't analyze the image at the moment. Please try again later.";
   }
 }
@@ -101,13 +94,18 @@ bot.on("message:photo", async (ctx) => {
       throw new Error("Couldn't get file path");
     }
 
-    // Download the image
-    const imageBuffer = await downloadTelegramImage(
-      `https://api.telegram.org/file/bot${token}/${file.file_path}`
-    );
+    const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+    console.log('Downloading image from Telegram...');
 
-    // Generate response using the File API
-    const aiResponse = await generateImageResponse(imageBuffer, 'image/jpeg');
+    // Download the image data
+    const response = await fetch(fileUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const imageData = new Uint8Array(arrayBuffer);
+    
+    console.log('Image downloaded successfully');
+
+    // Generate response using the image data
+    const aiResponse = await generateImageResponse(imageData);
 
     return ctx.reply(aiResponse, {
       parse_mode: "Markdown",
@@ -115,6 +113,12 @@ bot.on("message:photo", async (ctx) => {
     });
   } catch (error) {
     console.error('Error handling photo message:', error);
+    if (error instanceof Error) {
+      return ctx.reply(
+        `Sorry, there was an error processing your image: ${error.message}`,
+        { reply_to_message_id: ctx.message.message_id }
+      );
+    }
     return ctx.reply(
       "Sorry, there was an error processing your image. Please try again.",
       { reply_to_message_id: ctx.message.message_id }
@@ -156,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Unhandled error:', e);
     res.status(500).json({ 
       error: 'Internal server error',
-      details: e.message 
+      details: e instanceof Error ? e.message : String(e) 
     });
   }
 }
