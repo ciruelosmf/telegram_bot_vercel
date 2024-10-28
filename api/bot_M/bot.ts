@@ -112,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Unhandled error:', e);
     res.status(500).json({ 
       error: 'Internal server error',
-      details: e.message 
+
     });
   }
 }
