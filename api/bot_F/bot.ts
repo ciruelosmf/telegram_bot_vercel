@@ -7,7 +7,7 @@ import fetch from "node-fetch";
 const token = process.env.BOT_F_TOKEN;
 const googleApiKey = process.env.GOOGLE_API_KEY;
 
-if (!token) throw new Error("BOT_TOKEN is unset");
+if (!token) throw new Error("BOT_TOKsEN is unset");
 if (!googleApiKey) throw new Error("GOOGLE_API_KEY is unset");
 
 const bot = new Bot(token);
